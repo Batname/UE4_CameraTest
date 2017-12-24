@@ -137,14 +137,14 @@ void FCamFrame::ReadSocket()
 			// Copy to image array buffer
 			Buffer.Append(ReceivedData.GetData(), ReceivedData.Num());
 		}
-		UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
+		//UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		// Just for prevent crash
 		if (Buffer.Num() == 648 * 488 * 4)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
+			//UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
 
 			// Copy to image array buffer
 			mutex.lock();
@@ -318,7 +318,7 @@ void AUDPClientActor::CopyCamFrame(const TArray<uint8>& DataArray)
 
 	if (ImageWrapper.IsValid() && bIsSet)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ImageWrapper.IsValid() && bIsSet"));
+		//UE_LOG(LogTemp, Warning, TEXT("ImageWrapper.IsValid() && bIsSet"));
 
 		const TArray<uint8>* UncompressedBGRA = NULL;
 		if (ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, UncompressedBGRA))
