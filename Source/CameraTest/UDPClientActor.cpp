@@ -6,18 +6,17 @@
 #include "Engine/Texture2D.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Runtime/Engine/Classes/Components/StaticMeshComponent.h"
+#include "Runtime/CoreUObject/Public/UObject/ConstructorHelpers.h"
 
 
-FCamFrame::FCamFrame(FString YourChosenSocketName, FString TheIP, int32 ThePort, AUDPClientActor* UDPClientActor)
-	: SocketName(YourChosenSocketName)
-	, TheIP(TheIP)
-	, ThePort(ThePort)
-	, UDPClientActor(UDPClientActor)
+FCamFrame::FCamFrame(AUDPClientActor* UDPClientActor)
+	: UDPClientActor(UDPClientActor)
 	, ListenerSocket(nullptr)
 	, ConnectionSocket(nullptr)
 	, TotalDataSize(0)
 	, bIsReadSocketThreadRunning(false)
 {
+	FString SocketName = FString::Printf(TEXT("CamSocket_port_%d"), UDPClientActor->ThePort);
 }
 
 FCamFrame::~FCamFrame()
@@ -43,7 +42,7 @@ bool FCamFrame::Begin()
 	//Not created?
 	if (!ListenerSocket)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("StartTCPReceiver>> Listen socket could not be created! ~> %s %d"), *TheIP, ThePort);
+		UE_LOG(LogTemp, Warning, TEXT("StartTCPReceiver>> Listen socket could not be created! ~> %s %d"), *UDPClientActor->TheIP, UDPClientActor->ThePort);
 		return false;
 	}
 
@@ -64,8 +63,6 @@ void FCamFrame::TCPConnectionListener()
 		// handle incoming connections
 		if (ListenerSocket->HasPendingConnection(Pending) && Pending)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("ListenerSocket->HasPendingConnection(Pending) && Pending"));
-
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			//Already have a Connection? destroy previous
 			if (ConnectionSocket)
@@ -129,7 +126,7 @@ void FCamFrame::ReadSocket()
 
 			TotalDataSize += ReceivedData.Num();
 
-			if (TotalDataSize > 648 * 488 * 4)
+			if (TotalDataSize > UDPClientActor->FrameSize)
 			{
 				break;
 			}
@@ -142,7 +139,7 @@ void FCamFrame::ReadSocket()
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		// Just for prevent crash
-		if (Buffer.Num() == 648 * 488 * 4)
+		if (Buffer.Num() == UDPClientActor->FrameSize)
 		{
 			//UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
 
@@ -180,7 +177,7 @@ void FCamFrame::ReleaseSockets()
 FSocket * FCamFrame::CreateTCPConnectionListener(const int32 ReceiveBufferSize)
 {
 	uint8 IP4Nums[4];
-	if (!FormatIP4ToNumber(TheIP, IP4Nums))
+	if (!FormatIP4ToNumber(UDPClientActor->TheIP, IP4Nums))
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Invalid IP! Expecting 4 parts separated by "));
 
@@ -190,7 +187,7 @@ FSocket * FCamFrame::CreateTCPConnectionListener(const int32 ReceiveBufferSize)
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	//Create Socket
-	FIPv4Endpoint Endpoint(FIPv4Address(IP4Nums[0], IP4Nums[1], IP4Nums[2], IP4Nums[3]), ThePort);
+	FIPv4Endpoint Endpoint(FIPv4Address(IP4Nums[0], IP4Nums[1], IP4Nums[2], IP4Nums[3]), UDPClientActor->ThePort);
 	FSocket* ListenSocket = FTcpSocketBuilder(*SocketName)
 		.AsReusable()
 		.BoundToEndpoint(Endpoint)
@@ -236,9 +233,25 @@ AUDPClientActor::AUDPClientActor()
 
 	//Initialize the static mesh component
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(FName("StaticMesh"));
+	RootComponent = StaticMesh;
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMeshAsset(TEXT("StaticMesh'/Game/Meshes/PlaneMesh.PlaneMesh'"));
+	if (PlaneMeshAsset.Succeeded())
+	{
+		StaticMesh->SetStaticMesh(PlaneMeshAsset.Object);
+
+		static ConstructorHelpers::FObjectFinder<UMaterial> FrameMatAsset(TEXT("Material'/Game/FirstPersonCPP/Blueprints/FrameMat.FrameMat'"));
+		if (FrameMatAsset.Succeeded())
+		{
+			StaticMesh->SetMaterial(0, FrameMatAsset.Object);
+		}
+	}
+
+	// Set size of the frame
+	FrameSize = FrameWidth * FrameHeight * BytesPerColor;
 
 	// allocate array
-	FrameDataArray.AddUninitialized(648 * 488 * 4);
+	FrameDataArray.AddUninitialized(FrameSize);
 }
 
 // Called when the game starts or when spawned
@@ -248,8 +261,8 @@ void AUDPClientActor::BeginPlay()
 
 	UE_LOG(LogTemp, Warning, TEXT(" AUDPClientActor::BeginPlay()"));
 
-	CameraTextureFrame = UTexture2D::CreateTransient(648, 488, PF_B8G8R8A8);
-
+	// Create texture and dynamic material
+	CamTextureFrame = UTexture2D::CreateTransient(FrameWidth, FrameHeight, PF_B8G8R8A8);
 	DynamicMaterialCamFrame = StaticMesh->CreateAndSetMaterialInstanceDynamic(0);
 
 	// Run thread
@@ -258,7 +271,7 @@ void AUDPClientActor::BeginPlay()
 		bIsFrameThreadRunning = true;
 		CamFrameThread = std::thread([&]
 		{
-			CamFrame = new FCamFrame("RamaSocketListener", "127.0.0.1", 8889, this);
+			CamFrame = new FCamFrame(this);
 			CamFrame->Begin();
 		});
 	}
@@ -324,16 +337,16 @@ void AUDPClientActor::CopyCamFrame(const TArray<uint8>& DataArray)
 		if (ImageWrapper->GetRaw(ERGBFormat::BGRA, 8, UncompressedBGRA))
 		{
 			// That is slow for copy texture, make it async later
-			void* TextureData = CameraTextureFrame->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+			void* TextureData = CamTextureFrame->PlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
 			FMemory::Memcpy(TextureData, UncompressedBGRA->GetData(), UncompressedBGRA->Num());
-			CameraTextureFrame->PlatformData->Mips[0].BulkData.Unlock();
+			CamTextureFrame->PlatformData->Mips[0].BulkData.Unlock();
 
-			CameraTextureFrame->UpdateResource();
+			CamTextureFrame->UpdateResource();
 
 
 			if (DynamicMaterialCamFrame)
 			{
-				DynamicMaterialCamFrame->SetTextureParameterValue(FName("CamFrame"), CameraTextureFrame);
+				DynamicMaterialCamFrame->SetTextureParameterValue(FName("CamFrame"), CamTextureFrame);
 			}
 		}
 	}
