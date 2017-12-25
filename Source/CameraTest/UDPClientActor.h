@@ -5,8 +5,6 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Networking.h"
-#include "Interfaces/IImageWrapper.h"
-#include "Interfaces/IImageWrapperModule.h"
 
 #include <thread>
 #include <chrono>
@@ -105,11 +103,13 @@ protected:
 	TArray<uint8> FrameDataArray;
 
 protected:
-	UFUNCTION(BlueprintCallable, Category = CameraTest)
-	void CopyCamFrame(const TArray<uint8>& DataArray);
+	void UpdateTextureRegions(UTexture2D* Texture, int32 MipIndex, uint32 NumRegions, FUpdateTextureRegion2D* Regions, uint32 SrcPitch, uint32 SrcBpp, uint8* SrcData, bool bFreeData);
 
 private:
 	int32 FrameSize;
+
+	FUpdateTextureRegion2D* UpdateTextureRegion;
+	int32 BufferSizeSqrt;
 
 // TCP thread
 protected:
