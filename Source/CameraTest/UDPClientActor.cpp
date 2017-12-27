@@ -134,23 +134,33 @@ void FCamFrame::ReadSocket()
 			// Copy to image array buffer
 			Buffer.Append(ReceivedData.GetData(), ReceivedData.Num());
 		}
-		//UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
+		UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
+
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		// Just for prevent crash
 		if (Buffer.Num() == UDPClientActor->FrameSize)
 		{
-			//UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
+			UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
 
 			// Copy to image array buffer
 			mutex.lock();
 			UDPClientActor->FrameDataArray.Reset();
-			UDPClientActor->FrameDataArray.Append(Buffer.GetData(), Buffer.Num());
+			UDPClientActor->FrameDataArray.Append(Buffer.GetData(), UDPClientActor->FrameSize);
 			mutex.unlock();
 		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Wrong frame size"));
+		}
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		// Send unswer to sender
+		uint8 Unswer[3] = { 1, 2, 3 };
+		int32 Sent = 0;
+		ConnectionSocket->Send(Unswer, 3, Sent);
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(UDPClientActor->SocketTimeout));
 	}
 }
 

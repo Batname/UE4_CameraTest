@@ -65,6 +65,10 @@ public:
 	AUDPClientActor();
 
 protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraTest)
+	int32 SocketTimeout = 5;
+
+protected:
 	//Initialize the static mesh component
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = CameraTest)
 	UStaticMeshComponent* StaticMesh;
@@ -79,7 +83,7 @@ protected:
 	FString SocketName = "";
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = CameraTest)
-	FString TheIP = "127.0.0.1";
+	FString TheIP = "0.0.0.0";
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = CameraTest)
 	int32 ThePort = 0;
