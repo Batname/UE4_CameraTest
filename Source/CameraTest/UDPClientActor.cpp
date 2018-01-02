@@ -109,6 +109,13 @@ void FCamFrame::ReadSocket()
 			return;
 		}
 
+		if (!ConnectionSocket->Wait(ESocketWaitConditions::WaitForRead, FTimespan::FromMilliseconds(100)))
+		{
+			// Receiver time out
+			UE_LOG(LogTemp, Warning, TEXT("Receiver time out"));
+			continue;
+		}
+
 		//Binary Array!
 		TArray<uint8> ReceivedData;
 		TArray<uint8> Buffer;
@@ -134,15 +141,16 @@ void FCamFrame::ReadSocket()
 			// Copy to image array buffer
 			Buffer.Append(ReceivedData.GetData(), ReceivedData.Num());
 		}
-		UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
+		//UE_LOG(LogTemp, Warning, TEXT("Total Data read! %d, Buffer size %d"), TotalDataSize, Buffer.Num());
 
 
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 		// Just for prevent crash
-		if (Buffer.Num() == UDPClientActor->FrameSize)
+		//if (Buffer.Num() == UDPClientActor->FrameSize)
+		if (Buffer.Num() >= UDPClientActor->FrameSize)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
+			//UE_LOG(LogTemp, Warning, TEXT("Copy to image array buffer Buffer[100] %d"), Buffer[100]);
 
 			// Copy to image array buffer
 			mutex.lock();
@@ -152,7 +160,7 @@ void FCamFrame::ReadSocket()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Wrong frame size"));
+			//UE_LOG(LogTemp, Warning, TEXT("Wrong frame size"));
 		}
 
 		// Send unswer to sender
